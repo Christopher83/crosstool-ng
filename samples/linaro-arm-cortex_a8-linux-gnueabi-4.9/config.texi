@@ -1,0 +1,10 @@
+@set TARGET arm-cortex_a8-linux-gnueabi
+@set TRIPLET arm-cortex_a8-linux-gnueabi
+@set HAS_DEBUG_ROOT yes
+@set ARCH Cortex-A
+@set CPU Cortex-A8
+@set ABI 'softfp'
+@set MODE ARM
+@set FPU NEON FPU
+@set MULTILIB armv4t
+@set LSB lsb
