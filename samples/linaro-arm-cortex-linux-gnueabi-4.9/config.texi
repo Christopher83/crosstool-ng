@@ -1,0 +1,10 @@
+@set TARGET arm-cortex-linux-gnueabi
+@set TRIPLET arm-cortex-linux-gnueabi
+@set HAS_DEBUG_ROOT yes
+@set ARCH Cortex-A
+@set CPU Cortex-A9
+@set ABI 'softfp'
+@set MODE Thumb-2
+@set FPU VFPv3-D16 FPU
+@set MULTILIB armv4t
+@set LSB lsb
