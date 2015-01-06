@@ -1,0 +1,10 @@
+@set TARGET arm-cortex_a9-linux-gnueabihf
+@set TRIPLET arm-cortex_a9-linux-gnueabihf
+@set HAS_DEBUG_ROOT yes
+@set ARCH Cortex-A
+@set CPU Cortex-A9
+@set ABI 'hard float'
+@set MODE ARM
+@set FPU NEON FPU
+@set MULTILIB armv4t
+@set LSB lsb
