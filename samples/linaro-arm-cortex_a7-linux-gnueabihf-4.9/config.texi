@@ -1,0 +1,10 @@
+@set TARGET arm-cortex_a7-linux-gnueabihf
+@set TRIPLET arm-cortex_a7-linux-gnueabihf
+@set HAS_DEBUG_ROOT yes
+@set ARCH Cortex-A
+@set CPU Cortex-A7
+@set ABI 'hard float'
+@set MODE ARM
+@set FPU NEON-VFPV4 FPU
+@set MULTILIB armv4t
+@set LSB lsb
