@@ -2,7 +2,10 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.67])
-AC_INIT([crosstool-NG], [m4_esyscmd_s([cat .version])], [crossgcc@sourceware.org])
+AC_INIT(
+    [crosstool-NG],
+    [m4_esyscmd_s([git describe --always --dirty])],
+    [crossgcc@sourceware.org])
 AC_CONFIG_AUX_DIR([scripts])
 
 #--------------------------------------------------------------------
@@ -388,8 +391,8 @@ AS_IF(
      subdocdir=""
      datarootdir="$prefix"
      mandir="$docdir"],
-    [sublibdir="/ct-ng.\${VERSION}"
-     subdocdir="/ct-ng.\${VERSION}"])
+    [sublibdir="/\${VERSION}"
+     subdocdir="/\${VERSION}"])
 
 #--------------------------------------------------------------------
 # Finally, generate the output file(s)

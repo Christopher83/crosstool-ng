@@ -1,20 +1,37 @@
 # Copyright 2012 Yann Diorcet
 # Licensed under the GPL v2. See COPYING in the root of this package
 
-do_libc_get() { 
-    CT_GetFile "mingw-w64-v${CT_WINAPI_VERSION}" \
-        http://downloads.sourceforge.net/sourceforge/mingw-w64
+CT_WINAPI_VERSION_DOWNLOADED=
+
+do_libc_get() {
+    CT_DoStep INFO "Fetching mingw-w64 source for ${CT_WINAPI_VERSION}"
+    if [ "${CT_WINAPI_VERSION}" = "devel" ]; then
+        CT_GetGit "mingw-w64" "ref=HEAD" "git://git.code.sf.net/p/mingw-w64/mingw-w64" CT_WINAPI_VERSION_DOWNLOADED
+        CT_DoLog EXTRA "Fetched as ${CT_WINAPI_VERSION_DOWNLOADED}"
+    else
+        CT_GetFile "mingw-w64-v${CT_WINAPI_VERSION}" \
+            http://downloads.sourceforge.net/sourceforge/mingw-w64
+        CT_WINAPI_VERSION_DOWNLOADED=v${CT_WINAPI_VERSION}
+    fi
+    CT_EndStep
 }
 
 do_libc_extract() {
-    CT_Extract "mingw-w64-v${CT_WINAPI_VERSION}"
-    CT_Pushd "${CT_SRC_DIR}/mingw-w64-v${CT_WINAPI_VERSION}/"
-    CT_Patch nochdir mingw-w64 "${CT_WINAPI_VERSION}"
+    CT_Extract "mingw-w64-${CT_WINAPI_VERSION_DOWNLOADED}"
+    CT_Pushd "${CT_SRC_DIR}/mingw-w64-${CT_WINAPI_VERSION_DOWNLOADED}/"
+    CT_Patch nochdir mingw-w64 "${CT_WINAPI_VERSION_DOWNLOADED}"
     CT_Popd
 }
 
 do_libc_check_config() {
     :
+}
+
+do_set_mingw_install_prefix(){
+    MINGW_INSTALL_PREFIX=/usr/${CT_TARGET}
+    if [[ ${CT_WINAPI_VERSION} == 2* ]]; then
+        MINGW_INSTALL_PREFIX=/usr
+    fi
 }
 
 do_libc_start_files() {
@@ -33,11 +50,12 @@ do_libc_start_files() {
 
     CT_DoLog EXTRA "Configuring Headers"
 
+    do_set_mingw_install_prefix
     CT_DoExecLog CFG        \
-    "${CT_SRC_DIR}/mingw-w64-v${CT_WINAPI_VERSION}/mingw-w64-headers/configure" \
+    "${CT_SRC_DIR}/mingw-w64-${CT_WINAPI_VERSION_DOWNLOADED}/mingw-w64-headers/configure" \
         --build=${CT_BUILD} \
         --host=${CT_TARGET} \
-        --prefix=/usr       \
+        --prefix=${MINGW_INSTALL_PREFIX} \
         "${sdk_opts[@]}"
 
     CT_DoLog EXTRA "Compile Headers"
@@ -45,7 +63,7 @@ do_libc_start_files() {
 
     CT_DoLog EXTRA "Installing Headers"
     CT_DoExecLog ALL make install DESTDIR=${CT_SYSROOT_DIR}
-    
+
     CT_Popd
 
     # It seems mingw is strangely set up to look into /mingw instead of
@@ -56,18 +74,35 @@ do_libc_start_files() {
     CT_EndStep
 }
 
+do_check_mingw_vendor_tuple()
+{
+    if [[ ${CT_WINAPI_VERSION} == 4* ]]; then
+       CT_DoStep INFO "Checking vendor tuple configured in crosstool-ng .config"
+       if [[ ${CT_TARGET_VENDOR} == w64 ]]; then
+           CT_DoLog EXTRA "The tuple is set to '${CT_TARGET_VENDOR}', as recommended by mingw-64 team."
+       else
+           CT_DoLog WARN "WARNING! The tuple '${CT_TARGET_VENDOR}', is not equal to w64 and might break the toolchain! WARNING!"
+       fi
+       CT_EndStep
+    fi
+}
+
 do_libc() {
+    do_check_mingw_vendor_tuple
+
     CT_DoStep INFO "Building mingw-w64 files"
 
     CT_DoLog EXTRA "Configuring mingw-w64-crt"
 
     CT_mkdir_pushd "${CT_BUILD_DIR}/build-mingw-w64-crt"
 
-    CT_DoExecLog CFG                                                        \
-    "${CT_SRC_DIR}/mingw-w64-v${CT_WINAPI_VERSION}/mingw-w64-crt/configure" \
-        --prefix=/usr                                                       \
-        --build=${CT_BUILD}                                                 \
-        --host=${CT_TARGET}                                                 \
+    do_set_mingw_install_prefix
+    CT_DoExecLog CFG                                                                  \
+    "${CT_SRC_DIR}/mingw-w64-${CT_WINAPI_VERSION_DOWNLOADED}/mingw-w64-crt/configure" \
+        --with-sysroot=${CT_SYSROOT_DIR}                                              \
+        --prefix=${MINGW_INSTALL_PREFIX}                                              \
+        --build=${CT_BUILD}                                                           \
+        --host=${CT_TARGET}                                                           \
 
     CT_DoLog EXTRA "Building mingw-w64-crt"
     CT_DoExecLog ALL make ${JOBSFLAGS}

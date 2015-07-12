@@ -16,7 +16,7 @@ doHelp() {
     cat <<-EOF
 		Usage: ${myname} <--tool> <[options] version [...]> ...
 		  'tool' in one of:
-		    gcc, binutils, glibc, eglibc, uClibc, newlib, linux, gdb, dmalloc,
+		    gcc, binutils, glibc, uClibc, newlib, linux, gdb, dmalloc,
 		    duma, strace, ltrace, libelf, gmp, mpfr, ppl, cloog, mpc
 		
 		  Valid options for all tools:
@@ -80,9 +80,9 @@ addToolVersion() {
     # to try adding a new version if the one he/she wants is not listed.
     # But it can be the case where the version is hidden behind either one
     # of EXPERIMENTAL or OBSOLETE, so warn if the version is already listed.
-    if grep -E "^config ${config_ver_option}$" "${file}" >/dev/null 2>&1; then
+    if ${grep} -E "^config ${config_ver_option}$" "${file}" >/dev/null 2>&1; then
         echo "'${tool}': version '${version}' already present:"
-        grep -A1 -B0 -n                                                     \
+        ${grep} -A1 -B0 -n                                                     \
              -E "^(config ${config_ver_option}| {4}prompt \"${version}\")$" \
              "${file}" /dev/null
         return 0
@@ -131,14 +131,6 @@ addToolVersion() {
                 SedExpr1="${SedExpr1}\n    select BINUTILS_2_18_or_later"
             fi
             ;;
-        eglibc)
-            # Extract 'M'ajor and 'm'inor from version string
-            ver_M=$(getVersionField "${version}" _ 1)
-            ver_m=$(getVersionField "${version}" _ 2)
-            if [   \( ${ver_M} -eq 2 -a ${ver_m} -ge 16 \)  ]; then
-                SedExpr1="${SedExpr1}\n    select LIBC_EGLIBC_2_16_or_later"
-            fi
-            ;;
         uClibc)
             # uClibc-0.9.30 and above need some love
             ver_M=$(getVersionField "${version}" . 1)
@@ -183,10 +175,9 @@ fi
 while [ $# -gt 0 ]; do
     case "$1" in
         # Tools:
-        --gcc)      EXP=; OBS=; cat=CC;             tool=gcc;       tool_prefix=cc;             dot2suffix=;;
+        --gcc)      EXP=; OBS=; cat=CC_GCC;         tool=gcc;       tool_prefix=cc;             dot2suffix=;;
         --binutils) EXP=; OBS=; cat=BINUTILS;       tool=binutils;  tool_prefix=binutils;       dot2suffix=;;
         --glibc)    EXP=; OBS=; cat=LIBC_GLIBC;     tool=glibc;     tool_prefix=libc;           dot2suffix=;;
-        --eglibc)   EXP=; OBS=; cat=LIBC_EGLIBC;    tool=eglibc;    tool_prefix=libc;           dot2suffix=;;
         --uClibc)   EXP=; OBS=; cat=LIBC_UCLIBC;    tool=uClibc;    tool_prefix=libc;           dot2suffix=;;
         --newlib)   EXP=; OBS=; cat=LIBC_NEWLIB;    tool=newlib;    tool_prefix=libc;           dot2suffix=;;
         --linux)    EXP=; OBS=; cat=KERNEL;         tool=linux;     tool_prefix=kernel;         dot2suffix=;;
