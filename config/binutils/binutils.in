@@ -2,6 +2,41 @@
 
 comment "GNU binutils"
 
+config BINUTILS_CUSTOM
+    bool
+    prompt "Custom binutils"
+    depends on EXPERIMENTAL
+    select BINUTILS_2_25_1_or_later
+    help
+      The choosen binutils version shall be not downloaded. Instead use
+      a custom location to get the source.
+
+if BINUTILS_CUSTOM
+
+config BINUTILS_CUSTOM_LOCATION
+    string
+    prompt "Full path to custom binutils source"
+    help
+      Enter the path to the directory or tarball of your source for binutils.
+
+      If the path is a tarball, it should extract to: <name>-<version>/
+      where the name is this component, binutils, and the version is set
+      below in the custom version string.
+
+config BINUTILS_CUSTOM_VERSION
+    string
+    prompt "Binutils Custom Version number"
+    help
+      Enter the version number for your custom binutils.
+
+config BINUTILS_VERSION
+    string
+    default BINUTILS_CUSTOM_VERSION
+
+endif # BINUTILS_CUSTOM
+
+if ! BINUTILS_CUSTOM
+
 config CC_BINUTILS_SHOW_LINARO
     bool
     prompt "Show Linaro versions"
@@ -25,16 +60,16 @@ choice
 # Don't remove next line
 # CT_INSERT_VERSION_BELOW
 
+config BINUTILS_V_2_25_1
+    bool
+    prompt "2.25.1"
+    select BINUTILS_2_25_1_or_later
+
 config BINUTILS_LINARO_V_2_25
     bool
     prompt "linaro-2.25.0-2015.01-2"
     select BINUTILS_2_25_or_later
     depends on CC_BINUTILS_SHOW_LINARO
-
-config BINUTILS_V_2_25
-    bool
-    prompt "2.25"
-    select BINUTILS_2_25_or_later
 
 config BINUTILS_LINARO_V_2_24
     bool
@@ -50,80 +85,25 @@ config BINUTILS_V_2_24
 config BINUTILS_V_2_23_2
     bool
     prompt "2.23.2"
-    select BINUTILS_2_23_or_later
-
-config BINUTILS_V_2_23_1
-    bool
-    prompt "2.23.1"
-    select BINUTILS_2_23_or_later
-
-config BINUTILS_V_2_22
-    bool
-    prompt "2.22"
-    select BINUTILS_2_22_or_later
-
-config BINUTILS_V_2_21_53
-    bool
-    prompt "2.21.53"
-    select BINUTILS_2_21_or_later
-
-config BINUTILS_V_2_21_1a
-    bool
-    prompt "2.21.1a"
-    select BINUTILS_2_21_or_later
-
-config BINUTILS_V_2_20_1a
-    bool
-    prompt "2.20.1a"
-    select BINUTILS_2_20_or_later
-
-config BINUTILS_V_2_19_1a
-    bool
-    prompt "2.19.1a"
-    select BINUTILS_2_19_or_later
-
-config BINUTILS_V_2_18a
-    bool
-    prompt "2.18a"
-    select BINUTILS_2_18_or_later
-
-config BINUTILS_CUSTOM
-    bool
-    prompt "Custom binutils"
-    depends on EXPERIMENTAL
-    select BINUTILS_2_22_or_later
+    select BINUTILS_2_23_2_or_later
 
 endchoice
-
-if BINUTILS_CUSTOM
-
-config BINUTILS_CUSTOM_LOCATION
-    string
-    prompt "Full path to custom binutils source"
-    default ""
-    help
-      Enter the path to the directory (or tarball) of your source for binutils,
-      or leave blank to use default CT_CUSTOM_LOCATION_ROOT_DIR/binutils
-
-endif # BINUTILS_CUSTOM
 
 config BINUTILS_VERSION
     string
 # Don't remove next line
 # CT_INSERT_VERSION_STRING_BELOW
+    default "2.25.1" if BINUTILS_V_2_25_1
     default "linaro-2.25.0-2015.01-2" if BINUTILS_LINARO_V_2_25
-    default "2.25" if BINUTILS_V_2_25
     default "linaro-2.24.0-2014.11-2" if BINUTILS_LINARO_V_2_24
     default "2.24" if BINUTILS_V_2_24
     default "2.23.2" if BINUTILS_V_2_23_2
-    default "2.23.1" if BINUTILS_V_2_23_1
-    default "2.22" if BINUTILS_V_2_22
-    default "2.21.53" if BINUTILS_V_2_21_53
-    default "2.21.1a" if BINUTILS_V_2_21_1a
-    default "2.20.1a" if BINUTILS_V_2_20_1a
-    default "2.19.1a" if BINUTILS_V_2_19_1a
-    default "2.18a" if BINUTILS_V_2_18a
-    default "custom" if BINUTILS_CUSTOM
+
+endif # ! BINUTILS_CUSTOM
+
+config BINUTILS_2_25_1_or_later
+    bool
+    select BINUTILS_2_25_or_later
 
 config BINUTILS_2_25_or_later
     bool
@@ -131,34 +111,14 @@ config BINUTILS_2_25_or_later
 
 config BINUTILS_2_24_or_later
     bool
-    select BINUTILS_2_23_or_later
+    select BINUTILS_2_23_2_or_later
 
-config BINUTILS_2_23_or_later
+config BINUTILS_2_23_2_or_later
     bool
-    select BINUTILS_2_22_or_later
-
-config BINUTILS_2_22_or_later
-    bool
-    select BINUTILS_2_21_or_later
-
-config BINUTILS_2_21_or_later
-    bool
-    select BINUTILS_2_20_or_later
     select BINUTILS_HAS_GOLD
-    select BINUTILS_HAS_PLUGINS
-
-config BINUTILS_2_20_or_later
-    bool
-    select BINUTILS_2_19_or_later
-
-config BINUTILS_2_19_or_later
-    bool
-    select BINUTILS_2_18_or_later
-
-config BINUTILS_2_18_or_later
-    bool
-    select BINUTILS_HAS_PKGVERSION_BUGURL
     select BINUTILS_HAS_HASH_STYLE
+    select BINUTILS_HAS_PKGVERSION_BUGURL
+    select BINUTILS_HAS_PLUGINS
 
 config BINUTILS_HAS_HASH_STYLE
     bool
@@ -171,6 +131,13 @@ config BINUTILS_GOLD_SUPPORTS_ARCH
     bool
     default y if ARCH_arm
     default y if ARCH_x86
+
+config BINUTILS_GOLD_SUPPORT
+    bool
+    default y
+    depends on BINUTILS_HAS_GOLD
+    depends on BINUTILS_GOLD_SUPPORTS_ARCH
+    depends on ! STATIC_TOOLCHAIN
 
 config BINUTILS_HAS_PLUGINS
     bool
@@ -197,8 +164,7 @@ config BINUTILS_LINKER_LD
 config BINUTILS_LINKER_GOLD
     bool
     prompt "gold"
-    depends on BINUTILS_HAS_GOLD
-    depends on BINUTILS_GOLD_SUPPORTS_ARCH
+    depends on BINUTILS_GOLD_SUPPORT
     depends on ! BINUTILS_FORCE_LD_BFD
     select BINUTILS_GOLD_INSTALLED
     help
@@ -210,8 +176,7 @@ config BINUTILS_LINKER_GOLD
 config BINUTILS_LINKER_LD_GOLD
     bool
     prompt "ld, gold"
-    depends on BINUTILS_HAS_GOLD
-    depends on BINUTILS_GOLD_SUPPORTS_ARCH
+    depends on BINUTILS_GOLD_SUPPORT
     select BINUTILS_GOLD_INSTALLED
     select BINUTILS_LINKER_BOTH
     help
@@ -223,8 +188,7 @@ config BINUTILS_LINKER_LD_GOLD
 config BINUTILS_LINKER_GOLD_LD
     bool
     prompt "gold, ld"
-    depends on BINUTILS_HAS_GOLD
-    depends on BINUTILS_GOLD_SUPPORTS_ARCH
+    depends on BINUTILS_GOLD_SUPPORT
     select BINUTILS_GOLD_INSTALLED
     select BINUTILS_LINKER_BOTH
     select BINUTILS_LD_WRAPPER if BINUTILS_FORCE_LD_BFD

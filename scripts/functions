@@ -1,4 +1,6 @@
-# This file contains some usefull common functions -*- sh -*-
+# -*- mode: sh; tab-width: 4 -*-
+# vi: ts=4:sw=4:sts=4:et
+# This file contains some usefull common functions
 # Copyright 2007 Yann E. MORIN
 # Licensed under the GPL v2. See COPYING in the root of this package
 
@@ -14,7 +16,7 @@ CT_OnError() {
     # To avoid printing the backtace for each sub-shell
     # up to the top-level, just remember we've dumped it
     if [ ! -f "${CT_WORK_DIR}/backtrace" ]; then
-        touch "${CT_WORK_DIR}/backtrace"
+        [ -d "${CT_WORK_DIR}" ] && touch "${CT_WORK_DIR}/backtrace"
 
         # Print steps backtrace
         step_depth=${CT_STEP_COUNT}
@@ -178,7 +180,7 @@ CT_DoLog() {
     if [ $# -eq 0 ]; then
         cat -
     else
-        printf "%s\n" "${*}"
+        echo -e "${*}"
     fi |( IFS="${CR}" # We want the full lines, even leading spaces
           _prog_bar_cpt=0
           _prog_bar[0]='/'
@@ -478,7 +480,7 @@ CT_DoForceRmdir() {
 # Echoes the specified string on stdout until the pipe breaks.
 # Doesn't fail
 # $1: string to echo
-# Usage: CT_DoYes "" |make oldconfig
+# Usage: CT_DoYes "" |${make} oldconfig
 CT_DoYes() {
     yes "$1" || true
 }
@@ -625,39 +627,58 @@ CT_GetLocal() {
 }
 
 # This function gets the custom source from either a tarball or directory
-# Usage: CT_GetCustom <component> <custom_version> <custom_location>
+# Usage: CT_GetCustom <name> <version> <location>
 CT_GetCustom() {
-    local custom_component="$1"
-    local custom_version="$2"
-    local custom_location="$3"
-    local custom_name="${custom_component}-${custom_version}"
+    local component_name="$1"
+    local component_version="$2"
+    local component_location="$3"
 
-    CT_TestAndAbort "${custom_name}: CT_CUSTOM_LOCATION_ROOT_DIR or ${custom_component}'s CUSTOM_LOCATION must be set." \
-                    -z "${CT_CUSTOM_LOCATION_ROOT_DIR}" -a -z "${custom_location}"
+    # Some local variables we use to help us figure out what to do
+    local component_location_type="dir" # str: 'file' or 'dir'
+    local component_location_filename="" # filename... if it's a file
 
-    if [ -n "${CT_CUSTOM_LOCATION_ROOT_DIR}" \
-         -a -z "${custom_location}"          ]; then
-        custom_location="${CT_CUSTOM_LOCATION_ROOT_DIR}/${custom_component}"
+    CT_TestAndAbort \
+        "${component_name}: Custom location setting is empty" \
+        -z "${component_location}"
+
+    CT_TestAndAbort \
+        "${component_name}: Custom version setting is empty" \
+        -z "${component_version}"
+
+    if [ -f "${component_location}" ]; then
+        component_location_type="file"
+        component_location_filename="$(basename ${component_location})"
+    elif [ -d "${component_location}" ]; then
+        # Yes, it's the default, but it rules out the else case in the `if'.
+        component_location_type="dir"
+        # as -d and -f say: it's a <directory|file> and is readable!
+    else
+        CT_Abort "${component_name}: Unable to read ${component_location}, make sure the setting is correct and double check the permissions!"
     fi
 
-    CT_DoLog EXTRA "Using '${custom_name}' from custom location"
-    if [ ! -d "${custom_location}" ]; then
+    if [ "${component_location_type}" = "file" ]; then
+        CT_DoLog EXTRA "Got '${component_location}' from custom location"
         # We need to know the custom tarball extension,
         # so we can create a properly-named symlink, which
         # we use later on in 'extract'
-        case "${custom_location}" in
-            *.tar.xz)       custom_name="${custom_name}.tar.xz";;
-            *.tar.bz2)      custom_name="${custom_name}.tar.bz2";;
-            *.tar.gz|*.tgz) custom_name="${custom_name}.tar.gz";;
-            *.tar)          custom_name="${custom_name}.tar";;
-            *)  CT_Abort "Unknown extension for custom tarball '${custom_location}'";;
+        case "${component_location}" in
+            *.tar.xz|*.tar.bz2|*.tar.lzma|*.tar.gz|*.tgz|*.tar|*.zip) ;;
+            *) CT_Abort "Unknown extension for custom tarball '${component_location}'" ;;
         esac
-        CT_DoExecLog DEBUG ln -sf "${custom_location}"  \
-                                  "${CT_TARBALLS_DIR}/${custom_name}"
-    else
-        CT_DoExecLog DEBUG ln -snf "${custom_location}" \
-                                   "${CT_SRC_DIR}/${custom_name}"
+        [ ! -L "${CT_TARBALLS_DIR}/${component_location_filename}" ] && \
+            CT_DoExecLog DEBUG ln -sf "${component_location}" \
+            "${CT_TARBALLS_DIR}/${component_location_filename}"
+    elif [ "${component_location_type}" = "dir" ]; then
+        CT_DoLog EXTRA "Got '${component_location}' from custom location"
+        [ ! -d "${CT_SRC_DIR}/${component_name}-${component_version}" ] && \
+            CT_DoExecLog DEBUG cp -al "${component_location}" \
+            "${CT_SRC_DIR}/${component_name}-${component_version}"
+
+        # Don't try to extract from source directory, it's extracted!
+        touch "${CT_SRC_DIR}/.${component_name}-${component_version}.extracted"
     fi
+    # Don't patch a custom source, it's custom!
+    touch "${CT_SRC_DIR}/.${component_name}-${component_version}.patched"
 }
 
 # This function saves the specified to local storage if possible,
@@ -842,7 +863,7 @@ CT_GetGit() {
     local url="${3}"
     local _out_cset="${4}"
 
-    local ref=$(echo "${cset_or_ref}" | sed -n 's/^ref=\(.*\)/\1/p')
+    local ref=$(echo "${cset_or_ref}" | ${sed} -n 's/^ref=\(.*\)/\1/p')
     if [ -n "$ref" ]; then
         local matches=$(git ls-remote --exit-code "$url" --refs "${ref}")
         local result=$?
@@ -938,17 +959,17 @@ CT_Extract() {
     basename="$1"
     shift
 
-    if ! ext="$(CT_GetFileExtension "${basename}")"; then
-        CT_DoLog WARN "'${basename}' not found in '${CT_TARBALLS_DIR}'"
-        return 1
-    fi
-    local full_file="${CT_TARBALLS_DIR}/${basename}${ext}"
-
     # Check if already extracted
     if [ -e "${CT_SRC_DIR}/.${basename}.extracted" ]; then
         CT_DoLog DEBUG "Already extracted '${basename}'"
         return 0
     fi
+
+    if ! ext="$(CT_GetFileExtension "${basename}")"; then
+	CT_DoLog WARN "'${basename}' not found in '${CT_TARBALLS_DIR}'"
+	return 1
+    fi
+    local full_file="${CT_TARBALLS_DIR}/${basename}${ext}"
 
     # Check if previously partially extracted
     if [ -e "${CT_SRC_DIR}/.${basename}.extracting" ]; then
@@ -1101,13 +1122,14 @@ CT_Patch() {
     CT_DoLog EXTRA "Patching '${pkgdir}'"
 
     bundled_patch_dir="${CT_LIB_DIR}/patches/${pkgname}/${version}"
+    bundled_patch_arch_dir="${bundled_patch_dir}/${CT_ARCH}"
     local_patch_dir="${CT_LOCAL_PATCH_DIR}/${pkgname}/${version}"
 
     case "${CT_PATCH_ORDER}" in
-        bundled)        patch_dirs=("${bundled_patch_dir}");;
+        bundled)        patch_dirs=("${bundled_patch_dir}" "${bundled_patch_arch_dir}");;
         local)          patch_dirs=("${local_patch_dir}");;
-        bundled,local)  patch_dirs=("${bundled_patch_dir}" "${local_patch_dir}");;
-        local,bundled)  patch_dirs=("${local_patch_dir}" "${bundled_patch_dir}");;
+        bundled,local)  patch_dirs=("${bundled_patch_dir}" "${bundled_patch_arch_dir}" "${local_patch_dir}");;
+        local,bundled)  patch_dirs=("${local_patch_dir}" "${bundled_patch_dir}" "${bundled_patch_arch_dir}");;
         none)           patch_dirs=;;
     esac
 
@@ -1116,7 +1138,7 @@ CT_Patch() {
         if [ -n "${d}" -a -d "${d}" ]; then
             for p in "${d}"/*.patch; do
                 if [ -f "${p}" ]; then
-                    CT_DoExecLog ALL patch --no-backup-if-mismatch -g0 -F1 -p1 -f -i "${p}"
+                    CT_DoExecLog ALL ${patch} --no-backup-if-mismatch -g0 -F1 -p1 -f -i "${p}"
                 fi
             done
             if [ "${CT_PATCH_SINGLE}" = "y" ]; then
@@ -1131,7 +1153,9 @@ CT_Patch() {
             eval ${cfg}="${CT_LIB_DIR}/scripts/${cfg/_/.}"
             [ -e "${CT_TOP_DIR}/scripts/${cfg/_/.}" ] && eval ${cfg}="${CT_TOP_DIR}/scripts/${cfg/_/.}"
             # Can't use CT_DoExecLog because of the '{} \;' to be passed un-mangled to find
-            find . -type f -name "${cfg/_/.}" -exec cp -v "${!cfg}" {} \; |CT_DoLog ALL
+            find . -type f -name "${cfg/_/.}" \
+                -exec chmod -v u+w {} \; \
+                -exec cp -v "${!cfg}" {} \; |CT_DoLog ALL
         done
     fi
 
@@ -1206,6 +1230,11 @@ CT_DoBuildTargetTuple() {
         *glibc) CT_TARGET_SYS=gnu;;
         uClibc) CT_TARGET_SYS=uclibc;;
         musl)   CT_TARGET_SYS=musl;;
+        avr-libc)
+            # avr-libc only seems to work with the non-canonical "avr" target.
+            CT_TARGET_SKIP_CONFIG_SUB=y
+            CT_TARGET_SYS= # CT_TARGET_SYS must be empty too
+        ;;
         *)      CT_TARGET_SYS=elf;;
     esac
 
@@ -1259,7 +1288,10 @@ CT_DoBuildTargetTuple() {
     esac
 
     # Canonicalise it
-    CT_TARGET=$(CT_DoConfigSub "${CT_TARGET}")
+    if [ "${CT_TARGET_SKIP_CONFIG_SUB}" != "y" ]; then
+        CT_TARGET=$(CT_DoConfigSub "${CT_TARGET}")
+    fi
+
     # Prepare the target CFLAGS
     CT_ARCH_TARGET_CFLAGS="${CT_ARCH_TARGET_CFLAGS} ${CT_ARCH_ENDIAN_CFLAG}"
     CT_ARCH_TARGET_CFLAGS="${CT_ARCH_TARGET_CFLAGS} ${CT_ARCH_ARCH_CFLAG}"
@@ -1343,8 +1375,7 @@ CT_DoSaveState() {
     local state_name="$1"
     local state_dir="${CT_STATE_DIR}/${state_name}"
 
-    # Log this to the log level required by the user
-    CT_DoLog ${CT_LOG_LEVEL_MAX} "Saving state to restart at step '${state_name}'..."
+    CT_DoLog INFO "Saving state to restart at step '${state_name}'..."
 
     rm -rf "${state_dir}"
     mkdir -p "${state_dir}"
@@ -1353,7 +1384,7 @@ CT_DoSaveState() {
     # We must omit shell functions, and some specific bash variables
     # that break when restoring the environment, later. We could do
     # all the processing in the awk script, but a sed is easier...
-    set |awk '
+    set |${awk} '
               BEGIN { _p = 1; }
               $0~/^[^ ]+ \(\)/ { _p = 0; }
               _p == 1
@@ -1390,8 +1421,7 @@ CT_DoLoadState(){
         exec >"${state_dir}/tail.log"
     fi
 
-    # Log this to the log level required by the user
-    CT_DoLog ${CT_LOG_LEVEL_MAX} "Restoring state at step '${state_name}', as requested."
+    CT_DoLog INFO "Restoring state at step '${state_name}', as requested."
 
     CT_DoExtractTarballIfExists "${state_dir}/prefix_dir" "${CT_PREFIX_DIR}"
     CT_DoExtractTarballIfExists "${state_dir}/config_dir" "${CT_CONFIG_DIR}"
@@ -1416,4 +1446,52 @@ CT_DoLoadState(){
     cat "${state_dir}/tail.log" >>"${tmp_log_file}"
     exec >>"${tmp_log_file}"
     rm -f "${state_dir}/tail.log"
+}
+
+# This function sets a kconfig option to a specific value in a .config file
+# Usage: CT_KconfigSetOption <option> <value> <file>
+CT_KconfigSetOption() {
+    option="$1"
+    value="$2"
+    file="$3"
+
+    ${grep} -E -q "^${option}=.*" "${file}" && \
+        ${sed} -i -r -e "s;^${option}=.*$;${option}=${value};" "${file}" || \
+    ${grep} -E -q "^# ${option} is not set$" "${file}" && \
+        ${sed} -i -r -e "s;^# ${option} is not set$;${option}=${value};" "${file}" || \
+    echo "${option}=${value}" >> "${file}"
+}
+
+# This function enables a kconfig option to '=y' in a .config file
+# Usage: CT_KconfigEnableOption <option> <file>
+CT_KconfigEnableOption() {
+    option="$1"
+    file="$2"
+
+    CT_KconfigSetOption "${option}" "y" "${file}"
+}
+
+# This function disables a kconfig option in a .config file
+# Usage: CT_KconfigDisableOption <option> <file>
+CT_KconfigDisableOption() {
+    option="${1}"
+    file="${2}"
+
+    ${grep} -E -q "^# ${option} is not set$" "${file}" || \
+    ${grep} -E -q "^${option}=.*$" "${file}" && \
+        ${sed} -i -r -e "s;^${option}=.*$;# ${option} is not set;" "${file}" || \
+    echo "# ${option} is not set" >> "${file}"
+}
+
+# This function deletes a kconfig option in a .config file, no matter if it
+# is set or commented out.
+# Usage: CT_KconfigDeleteOption <option> <file>
+CT_KconfigDeleteOption() {
+    option="${1}"
+    file="${2}"
+
+    ${grep} -E -q "^# ${option} is not set$" "${file}" && \
+        ${sed} -i -r -e "/^# ${option} is not set$/d" "${file}" || \
+    ${grep} -E -q "^${option}=.*$" "${file}" && \
+        ${sed} -i -r -e "/^${option}=.*$/d" "${file}" || true
 }
